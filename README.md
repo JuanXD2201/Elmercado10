@@ -47,7 +47,7 @@ Tres capas: presentación (pantallas Compose, ViewModels, navegación), dominio 
 - Compilación de depuración correcta y 10 de 10 pruebas unitarias superadas.
 - Las reglas de Firestore del repositorio no se han desplegado ni probado con el emulador de Firebase.
 - Las notificaciones funcionan solo con la aplicación activa (sin FCM).
-- No hay capturas de ejecución: el emulador de Android no estaba disponible.
+- Las capturas de la documentación son renders de las pantallas reales con datos de demostración (Robolectric y Roborazzi, clase `ScreenshotsDocTest`); no provienen de un dispositivo. Se regeneran con `gradlew.bat recordRoborazziDebug --tests "com.example.ScreenshotsDocTest"`.
 
 El detalle de requisitos, arquitectura, pruebas, hallazgos de auditoría y riesgos está en [`DOCUMENTACION_ELMERCADO10`](DOCUMENTACION_ELMERCADO10):
 
