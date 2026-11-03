@@ -140,7 +140,7 @@ fun OrderCard(
     onUpdateStatus: (String) -> Unit
 ) {
     var showStatusMenu by remember { mutableStateOf(false) }
-    val statuses = listOf("pendiente", "confirmado", "enviado", "entregado", "cancelado")
+    val statuses = com.example.domain.model.OrderStatus.nextOptions(pedido.status).toList()
 
     val dateFormatted = SimpleDateFormat("dd/MM/yyyy • hh:mm a", Locale.getDefault())
         .format(Date(pedido.createdAt))
@@ -263,7 +263,7 @@ fun OrderCard(
             }
 
             // Si es vendedor, permitir cambiar estado
-            if (isSeller) {
+            if (isSeller && statuses.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(12.dp))
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
