@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.data.firebase.FirebaseManager
 import com.example.domain.model.CarritoItem
+import com.example.domain.model.OrderStatus
 import com.example.domain.model.Pedido
 import com.example.domain.model.PedidoItem
 import com.example.domain.repository.OrderRepository
@@ -55,21 +56,30 @@ class FirebaseOrderRepository(
                     val newStock = currentStock - item.cantidad
                     updatesToApply.add(productRef to newStock)
 
-                    val subtotal = item.precioUnitario * item.cantidad
-                    total += subtotal
-                    if (item.vendedorId.isNotBlank()) {
-                        sellerSet.add(item.vendedorId)
+                    // Precio y vendedor se toman del producto en Firestore, nunca del cliente.
+                    val serverPrice = productSnap.getDouble("precio")
+                        ?: throw IllegalStateException("El producto '${item.nombreProducto}' no tiene un precio válido.")
+                    val serverSeller = productSnap.getString("vendedorId").orEmpty()
+                    if (serverSeller.isBlank()) {
+                        throw IllegalStateException("El producto '${item.nombreProducto}' no tiene vendedor asignado.")
                     }
+                    if (serverSeller == userId) {
+                        throw IllegalStateException("No puedes comprar tu propio producto '${item.nombreProducto}'.")
+                    }
+
+                    val subtotal = serverPrice * item.cantidad
+                    total += subtotal
+                    sellerSet.add(serverSeller)
 
                     pedidoItems.add(
                         PedidoItem(
                             productoId = item.productoId,
-                            nombreProducto = item.nombreProducto,
+                            nombreProducto = productSnap.getString("nombre") ?: item.nombreProducto,
                             cantidad = item.cantidad,
-                            precioUnitario = item.precioUnitario,
+                            precioUnitario = serverPrice,
                             subtotal = subtotal,
-                            vendedorId = item.vendedorId,
-                            imagenProducto = item.imagenProducto
+                            vendedorId = serverSeller,
+                            imagenProducto = productSnap.getString("imagen") ?: item.imagenProducto
                         )
                     )
                 }
@@ -162,8 +172,19 @@ class FirebaseOrderRepository(
         val db = firestore
             ?: return Result.failure(Exception("Cloud Firestore no está inicializado."))
 
+        if (newStatus !in OrderStatus.all) {
+            return Result.failure(IllegalArgumentException("Estado de pedido no válido: $newStatus"))
+        }
+
         return try {
-            db.collection("pedidos").document(orderId).update("status", newStatus).await()
+            val orderRef = db.collection("pedidos").document(orderId)
+            db.runTransaction { transaction ->
+                val current = transaction.get(orderRef).getString("status") ?: OrderStatus.PENDIENTE
+                if (!OrderStatus.canTransition(current, newStatus)) {
+                    throw IllegalStateException("No se puede pasar de '$current' a '$newStatus'.")
+                }
+                transaction.update(orderRef, "status", newStatus)
+            }.await()
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)

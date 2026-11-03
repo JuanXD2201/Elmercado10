@@ -93,15 +93,15 @@ data class BottomNavItem(
 fun AppNavHost(
     navController: NavHostController = rememberNavController()
 ) {
-    val authViewModel = remember { AuthViewModel(AppContainer.authRepository) }
+    val authViewModel = navViewModel { AuthViewModel(AppContainer.authRepository) }
     val currentUser by authViewModel.currentUser.collectAsState()
 
     // Carrito del usuario actual
-    val cartItems by (if (currentUser != null) {
-        AppContainer.cartRepository.getCartItems(currentUser!!.uid)
-    } else {
-        kotlinx.coroutines.flow.flowOf(emptyList())
-    }).collectAsState(initial = emptyList())
+    val cartFlow = remember(currentUser?.uid) {
+        currentUser?.uid?.let { AppContainer.cartRepository.getCartItems(it) }
+            ?: kotlinx.coroutines.flow.flowOf(emptyList())
+    }
+    val cartItems by cartFlow.collectAsState(initial = emptyList())
     val cartCount = cartItems.sumOf { it.cantidad }
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -204,7 +204,7 @@ fun AppNavHost(
     // Rating Bottom Sheet
     if (ratingProductTarget != null && currentUser != null) {
         val (pId, pName) = ratingProductTarget!!
-        val ratingVm = remember(pId) {
+        val ratingVm = navViewModel(key = "rating_$pId") {
             RatingViewModel(
                 productoId = pId,
                 userId = currentUser!!.uid,
@@ -338,7 +338,7 @@ fun AppNavHost(
 
             // Home
             composable(Screen.Home.route) {
-                val homeVm = remember { HomeViewModel(AppContainer.productRepository) }
+                val homeVm = navViewModel { HomeViewModel(AppContainer.productRepository) }
                 HomeScreen(
                     currentUser = currentUser,
                     cartCount = cartCount,
@@ -367,7 +367,7 @@ fun AppNavHost(
                 )
             ) { backStackEntry ->
                 val categoryParam = backStackEntry.arguments?.getString("category")
-                val catalogVm = remember { CatalogViewModel(AppContainer.productRepository) }
+                val catalogVm = navViewModel { CatalogViewModel(AppContainer.productRepository) }
 
                 CatalogScreen(
                     catalogViewModel = catalogVm,
@@ -388,7 +388,7 @@ fun AppNavHost(
                 arguments = listOf(navArgument("productId") { type = NavType.StringType })
             ) { backStackEntry ->
                 val productId = backStackEntry.arguments?.getString("productId") ?: ""
-                val productDetailVm = remember(productId) {
+                val productDetailVm = navViewModel(key = "product_$productId") {
                     ProductDetailViewModel(
                         productId = productId,
                         productRepository = AppContainer.productRepository,
@@ -426,7 +426,7 @@ fun AppNavHost(
             // Cart
             composable(Screen.Cart.route) {
                 if (currentUser != null) {
-                    val cartVm = remember(currentUser!!.uid) {
+                    val cartVm = navViewModel(key = "cart_${currentUser!!.uid}") {
                         CartViewModel(
                             userId = currentUser!!.uid,
                             cartRepository = AppContainer.cartRepository,
@@ -447,7 +447,7 @@ fun AppNavHost(
             // Orders
             composable(Screen.Orders.route) {
                 if (currentUser != null) {
-                    val orderVm = remember(currentUser!!.uid, isSeller) {
+                    val orderVm = navViewModel(key = "orders_${currentUser!!.uid}_$isSeller") {
                         OrderViewModel(
                             userId = currentUser!!.uid,
                             isSeller = isSeller,
@@ -469,7 +469,7 @@ fun AppNavHost(
             // Seller Products
             composable(Screen.SellerProducts.route) {
                 if (currentUser != null) {
-                    val sellerVm = remember(currentUser!!.uid) {
+                    val sellerVm = navViewModel(key = "seller_${currentUser!!.uid}") {
                         SellerProductsViewModel(
                             sellerId = currentUser!!.uid,
                             productRepository = AppContainer.productRepository,
@@ -494,7 +494,7 @@ fun AppNavHost(
             // Add / Edit Product
             composable(Screen.AddEditProduct.route) {
                 if (currentUser != null) {
-                    val sellerVm = remember(currentUser!!.uid) {
+                    val sellerVm = navViewModel(key = "seller_edit_${currentUser!!.uid}") {
                         SellerProductsViewModel(
                             sellerId = currentUser!!.uid,
                             productRepository = AppContainer.productRepository,
@@ -516,7 +516,7 @@ fun AppNavHost(
             // Chats List
             composable(Screen.Chats.route) {
                 if (currentUser != null) {
-                    val chatVm = remember(currentUser!!.uid) {
+                    val chatVm = navViewModel(key = "chats_${currentUser!!.uid}") {
                         ChatViewModel(
                             userId = currentUser!!.uid,
                             chatRepository = AppContainer.chatRepository
@@ -546,7 +546,7 @@ fun AppNavHost(
                 val productName = backStackEntry.arguments?.getString("productName") ?: ""
 
                 if (currentUser != null) {
-                    val chatVm = remember(currentUser!!.uid) {
+                    val chatVm = navViewModel(key = "chat_detail_${currentUser!!.uid}") {
                         ChatViewModel(
                             userId = currentUser!!.uid,
                             chatRepository = AppContainer.chatRepository
@@ -566,7 +566,7 @@ fun AppNavHost(
             // Profile
             composable(Screen.Profile.route) {
                 if (currentUser != null) {
-                    val profileVm = remember(currentUser!!.uid) {
+                    val profileVm = navViewModel(key = "profile_${currentUser!!.uid}") {
                         ProfileViewModel(
                             userId = currentUser!!.uid,
                             userRepository = AppContainer.userRepository,
