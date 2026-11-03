@@ -166,7 +166,7 @@ fun ProductDetailScreen(
                             isLoading = isActionLoading,
                             onClick = {
                                 currentUser?.let { user ->
-                                    viewModel.buyNow(user.uid)
+                                    viewModel.buyNow(user.uid, selectedQuantity)
                                 } ?: Toast.makeText(context, "Inicia sesión primero", Toast.LENGTH_SHORT).show()
                             },
                             modifier = Modifier.weight(1f),

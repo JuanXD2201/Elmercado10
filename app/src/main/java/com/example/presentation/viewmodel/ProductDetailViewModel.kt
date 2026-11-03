@@ -78,6 +78,12 @@ class ProductDetailViewModel(
 
     fun addToCart(userId: String, quantity: Int = 1) {
         val currentProduct = product.value ?: return
+        if (userId == currentProduct.vendedorId) {
+            viewModelScope.launch {
+                _eventFlow.emit(ProductDetailEvent.ShowToast("No puedes comprar tu propio producto."))
+            }
+            return
+        }
         if (currentProduct.cantidad <= 0) {
             viewModelScope.launch {
                 _eventFlow.emit(ProductDetailEvent.ShowToast("Este producto está agotado."))
@@ -100,8 +106,14 @@ class ProductDetailViewModel(
         }
     }
 
-    fun buyNow(userId: String) {
+    fun buyNow(userId: String, quantity: Int = 1) {
         val currentProduct = product.value ?: return
+        if (userId == currentProduct.vendedorId) {
+            viewModelScope.launch {
+                _eventFlow.emit(ProductDetailEvent.ShowToast("No puedes comprar tu propio producto."))
+            }
+            return
+        }
         if (currentProduct.cantidad <= 0) {
             viewModelScope.launch {
                 _eventFlow.emit(ProductDetailEvent.ShowToast("Este producto está agotado."))
@@ -111,7 +123,7 @@ class ProductDetailViewModel(
 
         viewModelScope.launch {
             _isActionLoading.value = true
-            val result = cartRepository.addToCart(userId, currentProduct, 1)
+            val result = cartRepository.addToCart(userId, currentProduct, quantity.coerceAtLeast(1))
             _isActionLoading.value = false
             result.fold(
                 onSuccess = {
