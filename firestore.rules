@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Función para verificar si el usuario está autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Función para verificar si el usuario es el dueño del recurso
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // ==========================================
+    // 1. COLECCIÓN USUARIOS: usuarios/{uid}
+    // ==========================================
+    match /usuarios/{uid} {
+      // Cualquier usuario autenticado puede leer perfiles (para ver nombres de vendedores, etc.)
+      allow read: if isAuthenticated();
+      // El propio usuario puede crear su documento en el registro
+      allow create: if isOwner(uid);
+      // El propio usuario puede actualizar sus datos de perfil
+      allow update: if isOwner(uid);
+      // Solo el propietario puede eliminar su documento
+      allow delete: if isOwner(uid);
+    }
+
+    // ==========================================
+    // 2. COLECCIÓN PRODUCTOS: productos/{productoId}
+    // ==========================================
+    match /productos/{productoId} {
+      // Lectura pública de catálogo para compradores y visitantes
+      allow read: if true;
+
+      // Creación: Debe estar autenticado y su UID debe ser el vendedorId
+      allow create: if isAuthenticated() && request.resource.data.vendedorId == request.auth.uid;
+
+      // Actualización:
+      // a) El vendedor propietario puede modificar su producto
+      // b) Compradores autenticados pueden actualizar stock durante compras o calificación/promedio
+      allow update: if isAuthenticated() && (
+        resource.data.vendedorId == request.auth.uid ||
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cantidad', 'calificacionPromedio', 'numCalificaciones'])
+      );
+
+      // Eliminación: Solo el vendedor dueño del producto
+      allow delete: if isAuthenticated() && resource.data.vendedorId == request.auth.uid;
+
+      // Subcolección de calificaciones: productos/{productoId}/calificaciones/{uid}
+      match /calificaciones/{uid} {
+        allow read: if true;
+        allow create, update: if isOwner(uid);
+        allow delete: if isOwner(uid);
+      }
+    }
+
+    // ==========================================
+    // 3. COLECCIÓN CARRITOS: carritos/{uid}
+    // ==========================================
+    match /carritos/{uid} {
+      allow read, write: if isOwner(uid);
+
+      // Subcolección de items: carritos/{uid}/items/{productoId}
+      match /items/{productoId} {
+        allow read, write: if isOwner(uid);
+      }
+    }
+
+    // ==========================================
+    // 4. COLECCIÓN PEDIDOS: pedidos/{pedidoId}
+    // ==========================================
+    match /pedidos/{pedidoId} {
+      // Lectura: El comprador o los vendedores que tienen productos en este pedido
+      allow read: if isAuthenticated() && (
+        resource.data.usuarioId == request.auth.uid ||
+        request.auth.uid in resource.data.vendedorIds
+      );
+
+      // Creación: El comprador crea el pedido con su propio UID
+      allow create: if isAuthenticated() && request.resource.data.usuarioId == request.auth.uid;
+
+      // Actualización: Comprador o vendedor involucrado (por ejemplo actualizar estado de envío)
+      allow update: if isAuthenticated() && (
+        resource.data.usuarioId == request.auth.uid ||
+        request.auth.uid in resource.data.vendedorIds
+      );
+
+      allow delete: if false; // Inmutabilidad para auditoría de transacciones
+    }
+
+    // ==========================================
+    // 5. COLECCIÓN CHATS: chats/{chatId}
+    // ==========================================
+    match /chats/{chatId} {
+      allow read: if isAuthenticated() && request.auth.uid in resource.data.participantes;
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participantes;
+      allow update: if isAuthenticated() && request.auth.uid in resource.data.participantes;
+      allow delete: if isAuthenticated() && request.auth.uid in resource.data.participantes;
+
+      // Subcolección de mensajes: chats/{chatId}/mensajes/{mensajeId}
+      match /mensajes/{mensajeId} {
+        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+        allow create: if isAuthenticated() &&
+          request.resource.data.emisorId == request.auth.uid &&
+          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+        allow update: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+        allow delete: if false;
+      }
+    }
+  }
+}
