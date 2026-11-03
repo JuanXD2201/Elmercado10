@@ -2,109 +2,163 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Función para verificar si el usuario está autenticado
+    // ---------- Funciones auxiliares ----------
     function isAuthenticated() {
       return request.auth != null;
     }
 
-    // Función para verificar si el usuario es el dueño del recurso
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // Claves modificadas por la operación de escritura actual.
+    function changedKeys() {
+      return request.resource.data.diff(resource.data).affectedKeys();
+    }
+
+    // Transiciones de estado permitidas para el vendedor (ver OrderStatus.kt).
+    function validSellerTransition(from, to) {
+      return (from == 'pendiente' && to in ['confirmado', 'cancelado'])
+          || (from == 'confirmado' && to in ['enviado', 'cancelado'])
+          || (from == 'enviado' && to == 'entregado');
+    }
+
     // ==========================================
-    // 1. COLECCIÓN USUARIOS: usuarios/{uid}
+    // 1. usuarios/{uid}
     // ==========================================
     match /usuarios/{uid} {
-      // Cualquier usuario autenticado puede leer perfiles (para ver nombres de vendedores, etc.)
+      // Los perfiles son visibles para usuarios autenticados (nombre y contacto del vendedor).
       allow read: if isAuthenticated();
-      // El propio usuario puede crear su documento en el registro
-      allow create: if isOwner(uid);
-      // El propio usuario puede actualizar sus datos de perfil
-      allow update: if isOwner(uid);
-      // Solo el propietario puede eliminar su documento
+      allow create: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.tipoUsuario in ['comprador', 'vendedor'];
+      allow update: if isOwner(uid)
+        && request.resource.data.uid == uid
+        && request.resource.data.tipoUsuario in ['comprador', 'vendedor'];
       allow delete: if isOwner(uid);
     }
 
     // ==========================================
-    // 2. COLECCIÓN PRODUCTOS: productos/{productoId}
+    // 2. productos/{productoId}
     // ==========================================
     match /productos/{productoId} {
-      // Lectura pública de catálogo para compradores y visitantes
       allow read: if true;
 
-      // Creación: Debe estar autenticado y su UID debe ser el vendedorId
-      allow create: if isAuthenticated() && request.resource.data.vendedorId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.vendedorId == request.auth.uid
+        && request.resource.data.precio is number && request.resource.data.precio >= 0
+        && request.resource.data.cantidad is int && request.resource.data.cantidad >= 0
+        && request.resource.data.calificacionPromedio == 0
+        && request.resource.data.numCalificaciones == 0;
 
-      // Actualización:
-      // a) El vendedor propietario puede modificar su producto
-      // b) Compradores autenticados pueden actualizar stock durante compras o calificación/promedio
       allow update: if isAuthenticated() && (
-        resource.data.vendedorId == request.auth.uid ||
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['cantidad', 'calificacionPromedio', 'numCalificaciones'])
+        // a) El vendedor edita su producto, sin alterar dueño ni calificaciones.
+        (resource.data.vendedorId == request.auth.uid
+          && request.resource.data.vendedorId == resource.data.vendedorId
+          && request.resource.data.precio is number && request.resource.data.precio >= 0
+          && request.resource.data.cantidad is int && request.resource.data.cantidad >= 0
+          && !changedKeys().hasAny(['calificacionPromedio', 'numCalificaciones']))
+        // b) Un comprador solo puede descontar stock al comprar.
+        || (changedKeys().hasOnly(['cantidad'])
+          && request.resource.data.cantidad is int
+          && request.resource.data.cantidad >= 0
+          && request.resource.data.cantidad < resource.data.cantidad)
+        // c) Un usuario solo puede actualizar el agregado de calificaciones, con valores acotados.
+        || (changedKeys().hasOnly(['calificacionPromedio', 'numCalificaciones'])
+          && request.resource.data.calificacionPromedio >= 0
+          && request.resource.data.calificacionPromedio <= 5
+          && request.resource.data.numCalificaciones is int
+          && request.resource.data.numCalificaciones >= resource.data.numCalificaciones
+          && request.resource.data.numCalificaciones <= resource.data.numCalificaciones + 1)
       );
 
-      // Eliminación: Solo el vendedor dueño del producto
       allow delete: if isAuthenticated() && resource.data.vendedorId == request.auth.uid;
 
-      // Subcolección de calificaciones: productos/{productoId}/calificaciones/{uid}
+      // productos/{productoId}/calificaciones/{uid}
       match /calificaciones/{uid} {
         allow read: if true;
-        allow create, update: if isOwner(uid);
+        allow create, update: if isOwner(uid)
+          && request.resource.data.usuarioId == uid
+          && request.resource.data.estrellas is int
+          && request.resource.data.estrellas >= 1
+          && request.resource.data.estrellas <= 5
+          && get(/databases/$(database)/documents/productos/$(productoId)).data.vendedorId != uid;
         allow delete: if isOwner(uid);
       }
     }
 
     // ==========================================
-    // 3. COLECCIÓN CARRITOS: carritos/{uid}
+    // 3. carritos/{uid}
     // ==========================================
     match /carritos/{uid} {
       allow read, write: if isOwner(uid);
 
-      // Subcolección de items: carritos/{uid}/items/{productoId}
       match /items/{productoId} {
         allow read, write: if isOwner(uid);
       }
     }
 
     // ==========================================
-    // 4. COLECCIÓN PEDIDOS: pedidos/{pedidoId}
+    // 4. pedidos/{pedidoId}
     // ==========================================
     match /pedidos/{pedidoId} {
-      // Lectura: El comprador o los vendedores que tienen productos en este pedido
       allow read: if isAuthenticated() && (
         resource.data.usuarioId == request.auth.uid ||
         request.auth.uid in resource.data.vendedorIds
       );
 
-      // Creación: El comprador crea el pedido con su propio UID
-      allow create: if isAuthenticated() && request.resource.data.usuarioId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.usuarioId == request.auth.uid
+        && request.resource.data.status == 'pendiente'
+        && request.resource.data.vendedorIds is list
+        && request.resource.data.vendedorIds.size() > 0
+        && !(request.auth.uid in request.resource.data.vendedorIds)
+        && request.resource.data.totalAmount is number
+        && request.resource.data.totalAmount >= 0;
 
-      // Actualización: Comprador o vendedor involucrado (por ejemplo actualizar estado de envío)
-      allow update: if isAuthenticated() && (
-        resource.data.usuarioId == request.auth.uid ||
-        request.auth.uid in resource.data.vendedorIds
-      );
+      // Solo el vendedor involucrado cambia el estado, y únicamente 'status'.
+      allow update: if isAuthenticated()
+        && request.auth.uid in resource.data.vendedorIds
+        && changedKeys().hasOnly(['status'])
+        && validSellerTransition(resource.data.status, request.resource.data.status);
 
-      allow delete: if false; // Inmutabilidad para auditoría de transacciones
+      allow delete: if false;
     }
 
     // ==========================================
-    // 5. COLECCIÓN CHATS: chats/{chatId}
+    // 5. chats/{chatId}
     // ==========================================
     match /chats/{chatId} {
       allow read: if isAuthenticated() && request.auth.uid in resource.data.participantes;
-      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participantes;
-      allow update: if isAuthenticated() && request.auth.uid in resource.data.participantes;
-      allow delete: if isAuthenticated() && request.auth.uid in resource.data.participantes;
 
-      // Subcolección de mensajes: chats/{chatId}/mensajes/{mensajeId}
+      allow create: if isAuthenticated()
+        && request.auth.uid in request.resource.data.participantes
+        && request.resource.data.participantes.size() == 2;
+
+      // Los participantes no pueden cambiarse; solo se actualiza la vista previa.
+      allow update: if isAuthenticated()
+        && request.auth.uid in resource.data.participantes
+        && changedKeys().hasOnly(['ultimoMensaje', 'ultimaActividad']);
+
+      allow delete: if false;
+
       match /mensajes/{mensajeId} {
-        allow read: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
-        allow create: if isAuthenticated() &&
-          request.resource.data.emisorId == request.auth.uid &&
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
-        allow update: if isAuthenticated() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+        allow read: if isAuthenticated()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+
+        allow create: if isAuthenticated()
+          && request.resource.data.emisorId == request.auth.uid
+          && request.resource.data.texto is string
+          && request.resource.data.texto.size() > 0
+          && request.resource.data.texto.size() <= 2000
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+
+        // Un participante solo marca como leído un mensaje que no envió él.
+        allow update: if isAuthenticated()
+          && resource.data.emisorId != request.auth.uid
+          && changedKeys().hasOnly(['leido'])
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participantes;
+
         allow delete: if false;
       }
     }
