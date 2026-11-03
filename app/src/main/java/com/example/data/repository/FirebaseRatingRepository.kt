@@ -103,7 +103,8 @@ class FirebaseRatingRepository(
                     productRef,
                     mapOf(
                         "numCalificaciones" to newCount,
-                        "calificacionPromedio" to (Math.round(newAvg * 10.0) / 10.0)
+                        // Sin redondeo: evita acumular error en cada recálculo. La UI formatea a 1 decimal.
+                        "calificacionPromedio" to newAvg
                     )
                 )
             }.await()
