@@ -1,0 +1,5 @@
+Suite completa (gradlew testDebugUnitTest), 3 de noviembre de 2026.
+Pruebas: 25; fallos: 0; errores: 0; omitidas: 0.
+BUILD SUCCESSFUL en 11 min 37 s.
+Incluye 7 pruebas de OrderStatusTest, 15 renders de ScreenshotsDocTest y 3 pruebas de plantilla.
+El detalle por prueba está en resultados_suite_completa.csv.

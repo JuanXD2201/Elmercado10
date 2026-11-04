@@ -1,0 +1,26 @@
+﻿Clase;Prueba;Tiempo (s);Resultado
+com.example.ExampleRobolectricTest;read string from context;203.335;SUPERADA
+com.example.ExampleUnitTest;addition_isCorrect;0.001;SUPERADA
+com.example.GreetingScreenshotTest;greeting_screenshot;85.943;SUPERADA
+com.example.OrderStatusTest;noSePermiteRegresar;0.025;SUPERADA
+com.example.OrderStatusTest;estadoDesconocido_noTieneTransiciones;0.001;SUPERADA
+com.example.OrderStatusTest;estadosFinales_noTienenSalida;0.0;SUPERADA
+com.example.OrderStatusTest;enviado_noPuedeCancelarse;0.001;SUPERADA
+com.example.OrderStatusTest;pendiente_puedeConfirmarseOCancelarse;0.001;SUPERADA
+com.example.OrderStatusTest;noSePermiteSaltarEstados;0.001;SUPERADA
+com.example.OrderStatusTest;flujoNormal_hastaEntregado;0.001;SUPERADA
+com.example.ScreenshotsDocTest;pedidosComprador;21.889;SUPERADA
+com.example.ScreenshotsDocTest;inicio;10.308;SUPERADA
+com.example.ScreenshotsDocTest;calificar;4.709;SUPERADA
+com.example.ScreenshotsDocTest;perfil;1.649;SUPERADA
+com.example.ScreenshotsDocTest;filtros;1.488;SUPERADA
+com.example.ScreenshotsDocTest;chatDetalle;0.922;SUPERADA
+com.example.ScreenshotsDocTest;registro;1.144;SUPERADA
+com.example.ScreenshotsDocTest;pedidosVendedor;1.248;SUPERADA
+com.example.ScreenshotsDocTest;catalogo;2.095;SUPERADA
+com.example.ScreenshotsDocTest;chats;1.499;SUPERADA
+com.example.ScreenshotsDocTest;login;0.644;SUPERADA
+com.example.ScreenshotsDocTest;carrito;1.332;SUPERADA
+com.example.ScreenshotsDocTest;misProductos;1.629;SUPERADA
+com.example.ScreenshotsDocTest;detalleProducto;0.554;SUPERADA
+com.example.ScreenshotsDocTest;agregarProducto;1.173;SUPERADA

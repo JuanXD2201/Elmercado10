@@ -36,7 +36,7 @@ Kotlin, Jetpack Compose (Material 3), Navigation Compose, ViewModel, Coil, Camer
    gradlew.bat testDebugUnitTest
    ```
 
-La aplicación no usa ninguna API de inteligencia artificial, por lo que no requiere `GEMINI_API_KEY`. En equipos con 4 GB de RAM, `gradle.properties` limita la memoria de Gradle a 1536 MB y dos procesos de trabajo.
+La aplicación no usa ninguna API de inteligencia artificial, por lo que no requiere `GEMINI_API_KEY`. En equipos con 6 GB de RAM o menos, `gradle.properties` limita la memoria de Gradle a 1536 MB y dos procesos de trabajo.
 
 ## Arquitectura
 
@@ -44,7 +44,7 @@ Tres capas: presentación (pantallas Compose, ViewModels, navegación), dominio 
 
 ## Estado
 
-- Compilación de depuración correcta y 10 de 10 pruebas unitarias superadas.
+- Compilación de depuración correcta y suite completa de 25 pruebas superadas (7 de OrderStatus, 15 renders de pantallas y 3 de plantilla).
 - Las reglas de Firestore del repositorio no se han desplegado ni probado con el emulador de Firebase.
 - Las notificaciones funcionan solo con la aplicación activa (sin FCM).
 - Las capturas de la documentación son renders de las pantallas reales con datos de demostración (Robolectric y Roborazzi, clase `ScreenshotsDocTest`); no provienen de un dispositivo. Se regeneran con `gradlew.bat recordRoborazziDebug --tests "com.example.ScreenshotsDocTest"`.
